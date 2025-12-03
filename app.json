@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "Fitness App",
+    "slug": "fitness-app",
+    "scheme": "acme",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "icon": "./src/images/f-2.jpg",
+    "splash": {
+      "image": "./src/images/f-2.jpg",
+      "resizeMode": "contain",
+      "backgroundColor": "#c9c9c9"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "web": {
+      "output": "server"
+    },
+    "android": {
+      "package": "com.yourname.fitnessapp",
+      "permissions": [],
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./src/images/f-2.jpg",
+        "backgroundColor": "#c9c9c9"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.jangidvishal.fitness-app",
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://n"
+        }
+      ],
+      "expo-font"
+    ],
+    "extra": {
+      "router": {
+        "origin": "https://n"
+      },
+      "eas": {
+        "projectId": "9535dba3-62d1-4828-8d86-b2796f27a33e"
+      }
+    }
+  }
+}
