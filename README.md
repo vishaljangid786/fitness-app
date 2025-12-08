@@ -1,298 +1,194 @@
-# Fitness App
+# Client (Expo) — README
 
-Full-stack fitness tracker that pairs an Expo Router mobile experience with a Sanity content backend, NativeWind/Tailwind styling, and Clerk authentication (email/password + Google). The project is designed as a production-ready starter with opinionated structure, type-safe GROQ queries, and deployment hooks for both the app and CMS.
+This document explains the client (mobile) side of the Fitness App. It describes project layout, how to run and develop the Expo Router app, component conventions, integration points (Sanity + Clerk), environment variables, and troubleshooting tips.
 
 ---
 
-## Table of Contents
+## Table of contents
 
-1. [Overview](#overview)
-2. [Feature Highlights](#feature-highlights)
-3. [Architecture & Project Layout](#architecture--project-layout)
-4. [Requirements](#requirements)
-5. [Environment Variables](#environment-variables)
-6. [Installation & First Run](#installation--first-run)
-   - [1. Install global CLIs](#1-install-global-clis)
-   - [2. Install project dependencies](#2-install-project-dependencies)
-   - [3. Configure environment variables](#3-configure-environment-variables)
-   - [4. Start the Expo app](#4-start-the-expo-app)
-   - [5. Start the Sanity Studio](#5-start-the-sanity-studio)
-7. [Data & Content Management](#data--content-management)
-8. [Usage Walkthrough](#usage-walkthrough)
-9. [Deployment](#deployment)
-10. [Troubleshooting & Tips](#troubleshooting--tips)
-11. [Roadmap Ideas](#roadmap-ideas)
+- Overview
+- Quick start
+- Project layout (important files)
+- Key components and hooks
+- Navigation and routing
+- Data & Sanity integration (where it lives)
+- Authentication (Clerk)
+- Styling & assets
+- Scripts & common commands
+- Troubleshooting
+- Roadmap / next steps
 
 ---
 
 ## Overview
 
-- **Platform**: Expo SDK 54 (React Native 0.81, React 19) with Expo Router v6 for navigation.
-- **Styling**: Tailwind CSS + NativeWind 4, with global CSS loaded once (`src/app/_layout.tsx`).
-- **Auth**: Clerk for secure multisession auth (custom email/password + Google SSO).
-- **Content**: Sanity Studio with `exercise` and `workout` schemas, plus TypeScript type generation.
-- **Backend Calls**: GROQ queries via `@sanity/client`, image URLs via `@sanity/image-url`.
-- **AI Ready**: `openai` SDK and `getAiGuidance` placeholder awaiting implementation.
+- Client framework: Expo (Managed workflow) with Expo Router.
+- Navigation: File-based routes and nested tab groups in `src/app`.
+- Styling: Tailwind via NativeWind and global CSS (`src/app/global.css`).
+- Content: Sanity (GROQ) used to populate exercises and workouts.
+- Auth: Clerk for auth flows and secure session management.
 
-Everything lives inside `src/app` for the Expo app and `/sanity` for the CMS.
-
----
-
-## Feature Highlights
-
-- **Authentication**
-  - Email/password form with validation (`src/app/(app)/sign-in.tsx`).
-  - Google One Tap / OAuth via `GoogleSignIn` component using `useSSO()`.
-  - Secure token cache with `expo-secure-store`.
-- **Navigation**
-  - Protected stack (`src/app/(app)/_layout.tsx`) that hides tabs unless Clerk provides a valid session.
-  - Bottom tabs for Home, Exercises, Workout, History, and Profile; hidden screen for Active Workout.
-- **Exercises Library**
-  - GROQ query to list exercises, search filter, pull-to-refresh, and upscale cards.
-  - `ExerciseCard` renders Sanity images & difficulty badges; reused in history detail sections.
-- **Exercise Detail Modal**
-  - Scrollable modal with hero image, difficulty chip, description, video CTA, AI guidance stub, and action buttons.
-- **Workout History**
-  - Fetches workouts tied to the current Clerk user, displays friendly dates (“Today”, “Yesterday”) and per-set details.
-  - Uses `formatDuration` helper for human-readable times.
-- **Profile**
-  - Simple sign-out flow with confirmation using the Clerk `signOut` function.
-- **Sanity Studio**
-  - Includes type-safe `exercise` & `workout` schemas, CLI scripts, and generated typings consumed by the app.
+The mobile app lives in `src/app` with small reusable components in `src/app/components` and helper utilities in `src/lib`.
 
 ---
 
-## Architecture & Project Layout
+## Quick start
 
-```
-.
-├── src/
-│   ├── app/
-│   │   ├── _layout.tsx            # Clerk provider + global CSS
-│   │   ├── (app)/                 # Protected routes (needs signed-in user)
-│   │   │   ├── _layout.tsx        # Auth guard stack + modal config
-│   │   │   ├── (tabs)/            # Bottom tab navigator
-│   │   │   │   ├── index.tsx      # Home hero (template marketing)
-│   │   │   │   ├── exercises.tsx  # Sanity-powered exercises list
-│   │   │   │   ├── workout.tsx    # Placeholder screen
-│   │   │   │   ├── active-workout.tsx
-│   │   │   │   ├── history.tsx    # Workout history feed
-│   │   │   │   └── profile/...
-│   │   │   └── exercise-detail.tsx
-│   │   ├── components/
-│   │   │   ├── ExerciseCard.tsx
-│   │   │   └── GoogleSignIn.tsx
-│   │   └── global.css             # Tailwind + fonts
-│   └── lib/
-│       ├── sanity/                # Client config + derived types
-│       └── utils.ts               # Shared helpers (duration formatter)
-├── sanity/                        # Sanity Studio workspace
-│   ├── schemaTypes/               # `exercise` + `workout` schemas
-│   ├── sanity.config.ts           # Studio configuration
-│   └── sanity.cli.ts              # CLI entry
-├── app.json / metro.config.js / babel.config.js
-├── tailwind.config.js
-├── tsconfig.json
-└── package.json / package-lock.json
-```
-
----
-
-## Requirements
-
-- **Node.js**: v18 or newer (LTS recommended). Check with `node -v`.
-- **npm**: ships with Node, or use pnpm/yarn if preferred (examples use npm).
-- **Expo CLI**: `npm install -g expo-cli` for QR scan/devices.
-- **Sanity CLI**: `npm install -g @sanity/cli` to run Studio commands.
-- **Clerk Account**: create an application in the Clerk dashboard and grab an Expo publishable key.
-- **Sanity Project**: either reuse the configured project (`projectId: br1oshuv`, dataset `production`) or create your own and update `src/lib/sanity/client.ts`.
-
-> **Tip:** Install watchman (macOS) or enable long-path support (Windows) if you run into file watching issues.
-
----
-
-## Environment Variables
-
-Create an `.env` file at the repository root (Expo automatically picks up `EXPO_PUBLIC_*`). This file is **not** committed.
-
-| Variable                            | Required                        | Description                                            | Example         |
-| ----------------------------------- | ------------------------------- | ------------------------------------------------------ | --------------- |
-| `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | ✅                              | Clerk key for the Expo app                             | `pk_test_51...` |
-| `SANITY_API_TOKEN`                  | ✅ (if you plan to mutate data) | Sanity token with write access (used by `adminClient`) | `skQz...`       |
-
-```bash
-# .env (root)
-EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_XXXXXXXXXXXXXXXXXXXXXXXX
-SANITY_API_TOKEN=skXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-```
-
-> Prefix only the values meant for the client bundle with `EXPO_PUBLIC_`. Keep sensitive tokens (like the Sanity token) private and avoid `EXPO_PUBLIC_` unless they must be exposed in the app.
-
-Windows PowerShell users can set temporary env vars when testing:
+1. Install dependencies:
 
 ```powershell
-$env:EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_example"
-$env:SANITY_API_TOKEN="sk_example"
-```
-
-macOS/Linux shell export example:
-
-```sh
-export EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_example
-export SANITY_API_TOKEN=sk_example
-```
-
----
-
-## Installation & First Run
-
-### 1. Install global CLIs
-
-```sh
-npm install -g expo-cli @sanity/cli
-```
-
-### 2. Install project dependencies
-
-```sh
-# App dependencies
+cd client
 npm install
+```
 
-# Sanity workspace deps
+2. Populate `.env` at the repo root (or in the `client` folder if you isolate variables):
+
+```text
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+SANITY_API_TOKEN=sk_...          # only if you need server-side write access from the app (admin client)
+```
+
+3. Start the app:
+
+```powershell
+npm run start
+# or specific platforms
+npm run android
+npm run ios
+npm run web
+```
+
+4. (Optional) Start Sanity Studio in a separate terminal to manage content:
+
+```powershell
 cd sanity
-npm install
-cd ..
+npm run dev
 ```
 
-### 3. Configure environment variables
+---
 
-- Create `.env` with the variables listed above.
-- Alternatively, for local testing only, you can run `npx expo start --clear --config app.json --dev-client` with inline env vars, but `.env` is recommended.
+## Project layout (important files)
 
-### 4. Start the Expo app
+Top-level client files:
 
-```sh
-npm run start        # launches Metro + Expo Dev Tools
-npm run android      # opens Android emulator/device
-npm run ios          # opens iOS simulator (macOS only)
-npm run web          # runs Expo for Web
-```
+- `src/app/_layout.tsx` — app-level provider (Clerk) and global CSS import.
+- `src/app/(app)/_layout.tsx` — protected routes layout (guards tabs behind auth).
+- `src/app/(app)/(tabs)/_layout.tsx` — tab navigator configuration and icons.
+- `src/app/(app)/(tabs)/exercises.tsx` — exercise list screen.
+- `src/app/(app)/(tabs)/workout.tsx` — start workout screen.
+- `src/app/exercise-detail.tsx` — exercise modal details.
+- `src/app/components/ExerciseCard.tsx` — reusable card for exercise items.
+- `src/lib/sanity/client.ts` — Sanity client + `urlFor` helper.
+- `src/lib/sanity/types.ts` — generated types for Sanity documents.
 
-Expo Dev Tools present a QR code. Scan it with the Expo Go app (iOS/Android) or use `a`, `i`, `w` hotkeys in the terminal to target a platform.
+Folder conventions:
 
-### 5. Start the Sanity Studio
-
-In a second terminal:
-
-```sh
-cd sanity
-npm run dev          # http://localhost:3333
-```
-
-Sign in with your Sanity account. Use the desk to add exercises (name, difficulty, image, video URL) and workouts (userId, exercises array). These documents become available to the Expo app immediately.
+- `components/`: presentational and reusable UI components.
+- `lib/`: 3rd-party client configs and utilities.
+- `app/(app)/(tabs)`: grouped screens that require authentication.
 
 ---
 
-## Data & Content Management
+## Key components and hooks
 
-### Schemas (located in `sanity/schemaTypes/`)
+- `ExerciseCard` — displays exercise thumbnail (Sanity image), title, difficulty chip, and optional chevron. Use it inside lists.
+- `GoogleSignIn` — helper component that triggers Clerk's Google SSO flow.
+- `useUser()` / `useAuth()` from `@clerk/clerk-expo` — use these in protected screens to obtain user info and signOut.
 
-- **Exercise**
-  - Required fields: `name`, `difficulty`, `image.alt`.
-  - Optional: `description`, `videoUrl`, `isActive`.
-  - Example entry:
-    ```
-    Name: Barbell Back Squat
-    Difficulty: advanced
-    Description: Keep chest up, drive through heels...
-    Video URL: https://youtu.be/
-    Image: upload a 1:1 photo with alt text “Athlete performing back squat”.
-    ```
-- **Workout**
-  - Required: `userId`, `dateTime`, `duration`, at least one exercise set.
-  - Each set stores `reps`, `weight`, `weightUnit`.
-  - Example: 3 sets of 8 reps @ 225 lbs recorded on a specific UTC timestamp.
+Tips:
 
-### Seeding Example Content
-
-You can quickly seed data via the Sanity CLI:
-
-```sh
-cd sanity
-sanity documents create <<'JSON'
-{ "_type": "exercise", "name": "Push Up", "difficulty": "beginner", "description": "Keep core tight.", "isActive": true }
-JSON
-```
-
-For bulk imports, use `sanity dataset import data.ndjson production`.
-
-### Regenerating Types
-
-Whenever you alter schemas:
-
-```sh
-cd sanity
-npm run typegen
-```
-
-This updates `sanity/schema.json` and `src/lib/sanity/types.ts`, ensuring TypeScript autocomplete reflects the content model.
+- Keep components small and stateless where possible; pass handlers from screens for navigation or side-effects.
+- Store local UI state in component hooks and lift persistent state (workout progress) to a service or context if needed.
 
 ---
 
-## Usage Walkthrough
+## Navigation and routing
 
-1. **Authenticate**
-   - Launch the app, enter a Clerk test email/password, or tap “Continue with Google”.
-   - Successful auth redirects to the tab navigator thanks to the `Stack.Protected` guard.
-2. **Browse Exercises**
-   - Visit the Exercises tab. Pull to refresh or type in the search bar (`TextInput`) to filter by name.
-   - Tap an exercise card to open the modal and review details, image, and video CTA.
-3. **Review Workouts**
-   - Populate workouts in Sanity with the same `userId` as your Clerk session (visible in Clerk dashboard or `useUser()`).
-   - Open the History tab to see friendly groupings (today, yesterday, etc.) plus per-set breakdowns.
-4. **Profile & Sign Out**
-   - Navigate to Profile to trigger the sign-out confirmation modal.
+This project uses Expo Router's file-based routing. Key rules:
 
-> Helpful reference: The GROQ query in `src/app/(app)/(tabs)/history.tsx` shows how Sanity data is filtered by `userId`.
+- Files in `src/app` map to routes. Group directories like `(tabs)` are used to organize screens and control nesting.
+- Use `useRouter()` from `expo-router` to navigate programmatically, prefer relative routes (e.g., `router.push('active-workout')`) when navigating inside the same group to avoid mismatched absolute routes.
+- To hide tab bar on certain screens (like `active-workout`), `_layout.tsx` for tabs can set `tabBarStyle: { display: 'none' }` for specific `Tabs.Screen` entries.
+
+Common gotchas:
+
+- Leading slashes in `router.push('/active-workout')` may not resolve as expected if screens are nested in grouped folders — use relative names when in doubt.
 
 ---
 
-## Deployment
+## Data & Sanity integration
 
-- **Expo / EAS**
-  - Configure `eas.json` with the desired profiles.
-  - Authenticate with Expo: `npx eas login`.
-  - Build: `npx eas build -p ios --profile production` (or android).
-  - Deploy web: `npm run deploy` (runs `npx expo export -p web` and `npx eas-cli deploy`).
-- **Sanity Studio**
-  - `cd sanity && npm run build` to create a static bundle.
-  - `npm run deploy` to push the Studio to Sanity’s managed hosting.
-  - `npm run deploy-graphql` enables auto-generated GraphQL endpoints if needed.
+- Sanity client: `src/lib/sanity/client.ts` exports `client` and `urlFor()` helpers.
+- Queries: GROQ queries are defined close to screens (e.g., `exercisesQuery` in `exercises.tsx`). Keep queries small and explicit.
+- Types: `src/lib/sanity/types.ts` is generated by the Sanity typegen task — run `npm run typegen` in `/sanity` after schema changes.
 
-Remember to set environment variables in the Expo build profile and in Sanity’s hosting settings (Manage > API > Tokens).
+Best practices:
+
+- Use projection (`{name, difficulty, image{asset->{_ref}}}`) to only fetch required fields.
+- Handle empty states and network errors gracefully; always `try/catch` around `client.fetch()`.
 
 ---
 
-## Troubleshooting & Tips
+## Authentication (Clerk)
 
-- **Invalid Clerk key**: verify `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` matches the environment (Development vs Production).
-- **Sanity query returning 0 docs**: ensure the dataset contains published documents and the `userId` matches Clerk’s ID. Use Sanity Vision (`sanity dev`) to test GROQ.
-- **Metro cache issues**: run `npx expo start --clear`.
-- **Image rendering failures**: confirm `urlFor` receives a valid `image.asset._ref`.
-- **Pull-to-refresh spinner never stops**: ensure `fetchExercises` catches errors and toggles `refreshing` state (already handled in code).
-- **Windows path length**: enable long paths (`reg add HKLM\SYSTEM\CurrentControlSet\Control\FileSystem /v LongPathsEnabled /t REG_DWORD /d 1 /f`).
+- The app uses `@clerk/clerk-expo`. The top-level `src/app/_layout.tsx` and the protected `(app)` layout enforce and provide session context.
+- Use `useUser()` to get the current user and `useAuth()` for signOut and session actions.
+- Ensure `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` is set in your environment.
 
----
+Notes on dev:
 
-## Roadmap Ideas
-
-- Implement `getAiGuidance` in `exercise-detail.tsx` using the included `openai` dependency to generate personalized tips.
-- Build the Workout and Active Workout tabs with real-time timers, set logging, and `adminClient` mutations.
-- Add Clerk profile photos to the Profile tab; show user stats aggregated from workouts.
-- Introduce push notifications (Expo Notifications) for workout reminders.
-- Add Detox or Maestro end-to-end tests and integrate with CI (GitHub Actions + Expo EAS).
-- Extend the Sanity schema with exercise categories, equipment requirements, or programs, and surface filters in the app.
+- Clerk often uses redirect flows for OAuth; on mobile, these are handled via SafariViewController / Custom tabs — ensure `expo-web-browser` is installed and available in your runtime (Expo Go usually supports this; custom dev clients require a rebuild).
 
 ---
 
-Enjoy building on top of this detailed fitness starter! Contributions and customizations are welcome—feel free to fork, tweak, and deploy. 💪
+## Styling & assets
+
+- Tailwind via `nativewind` is configured in `tailwind.config.js` and used with `className` in components.
+- Fonts and global CSS are loaded from `src/app/global.css`.
+- Images: Sanity-hosted images use `urlFor(...)` which builds CDN URLs. For local assets, place them in `src/app/images` and load via `require()`.
+
+---
+
+## Scripts & common commands
+
+Run these from the `client` folder:
+
+- `npm run start` — start Expo dev server
+- `npm run android` — open Android device/emulator
+- `npm run ios` — open iOS simulator (macOS only)
+- `npm run web` — run web build locally
+- `npm run deploy` — exported web build + EAS deploy (configured in root package.json)
+
+Helpful debugging:
+
+- Clear Metro cache: `npm run start -- --clear` or `npx expo start -c`.
+- Show device logs: `npx expo log --device` or use your emulator logs.
+
+---
+
+## Troubleshooting
+
+- **Navigation not opening a screen**: Use relative `router.push('route-name')` inside grouped routes; check `src/app/(app)/(tabs)/_layout.tsx` for the `Tabs.Screen` name.
+- **`expo-web-browser` errors**: install the package (`expo install expo-web-browser`) and restart Metro; custom dev clients require a rebuild.
+- **Sanity data not appearing**: confirm documents are published in the correct dataset and `client.fetch` queries the same dataset; regenerate types after schema changes.
+- **Clerk auth issues**: verify `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` and that your Clerk app allows the platform (mobile redirect URIs for OAuth).
+- **Style missing / className ignored**: ensure `nativewind` is installed and `babel.config.js` includes the NativeWind plugin.
+
+---
+
+## Roadmap / next steps
+
+- Implement `getAiGuidance` using `openai` for personalized exercise tips.
+- Add a local mock provider for offline development when Sanity is unavailable.
+- Add unit and integration tests for components and screens.
+
+---
+
+If you'd like, I can also:
+
+- Scaffold a `src/app/examples` folder with a working mock data flow for offline development.
+- Add a `.env.example` file tailored to the client and a short script to validate env variables at startup.
+
+---
+
+Enjoy working on the client — tell me which next scaffold or change you want and I'll implement it.
