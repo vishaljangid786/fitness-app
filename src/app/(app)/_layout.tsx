@@ -31,6 +31,33 @@ const Layout = () => {
             statusBarStyle: "dark",
           }}
         />
+
+        <Stack.Screen
+          name="active-workout"
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        <Stack.Screen
+          name="all-exercises"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="history-detail"
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        <Stack.Screen
+          name="new-exercise"
+          options={{
+            headerShown: false,
+          }}
+        />
       </Stack.Protected>
 
       <Stack.Protected guard={!isSignedIn}>

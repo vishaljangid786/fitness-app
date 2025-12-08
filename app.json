@@ -6,22 +6,24 @@
     "version": "1.0.0",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
-    "icon": "./src/images/f-2.jpg",
+    "icon": "./src/images/f-2.png",
     "splash": {
-      "image": "./src/images/f-2.jpg",
+      "image": "./src/images/f-2.png",
       "resizeMode": "contain",
       "backgroundColor": "#c9c9c9"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "web": {
       "output": "server"
     },
     "android": {
-      "package": "com.yourname.fitnessapp",
+      "package": "com.jangidvishal.fitnessapp",
       "permissions": [],
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./src/images/f-2.jpg",
+        "foregroundImage": "./src/images/f-2.png",
         "backgroundColor": "#c9c9c9"
       }
     },
@@ -39,7 +41,8 @@
           "origin": "https://n"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "extra": {
       "router": {

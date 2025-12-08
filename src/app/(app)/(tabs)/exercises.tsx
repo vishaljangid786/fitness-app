@@ -7,22 +7,23 @@ import {
   RefreshControl,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { useAuth } from "@clerk/clerk-expo";
+
 import { useCallback } from "react";
 
 import React, { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import { defineQuery } from "groq";
-import { client } from "@/lib/sanity/client";
-import { Exercise } from "@/lib/sanity/types";
+type Exercise = any;
 import ExerciseCard from "@/app/components/ExerciseCard";
+import { EXERCISES_API } from "@/lib/api";
 
-export const exercisesQuery = defineQuery(`*[_type == "exercise"] {
-  ...
-}`);
+// Sanity removed: exercisesQuery left out
 
 export default function Exercises() {
+  const { getToken } = useAuth();
+
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -35,15 +36,24 @@ export default function Exercises() {
     }, [])
   );
 
-
-
   const fetchExercises = async () => {
     try {
-      // fetch exercises from sanity
-      const exercises = await client.fetch(exercisesQuery);
+      const token = await getToken();
+      const response = await fetch(EXERCISES_API, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const result = await response.json();
+      console.log("result:", result);
+      
 
-      setExercises(exercises);
-      setFilteredExercises(exercises);
+      if (result.success) {
+        setExercises(result.data); // store all exercises
+        setFilteredExercises(result.data); // also update filtered
+      } else {
+        console.error("API error:", result.error);
+      }
     } catch (error) {
       console.error("Error fetching exercises:", error);
     }
@@ -117,7 +127,7 @@ export default function Exercises() {
       {/* Exercises List */}
       <FlatList
         data={filteredExercises}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item._id || item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 24 }}
         renderItem={({ item }) => (
@@ -125,7 +135,7 @@ export default function Exercises() {
             item={item}
             onPress={() => {
               setIsDimmed(true); // 🔥 DIM when user taps
-              router.push(`/exercise-detail?id=${item._id}`);
+              router.push(`/exercise-detail?id=${item._id || item.id}`);
             }}
           />
         )}

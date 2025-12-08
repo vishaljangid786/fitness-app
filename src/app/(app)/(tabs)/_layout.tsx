@@ -1,8 +1,12 @@
 import { Tabs } from "expo-router";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import Entypo from "@expo/vector-icons/Entypo";
+import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
+import { useUser } from "@clerk/clerk-expo";
 
 function Layout() {
+  const { user, isLoaded } = useUser();
+
   return (
     <Tabs>
       <Tabs.Screen
@@ -49,6 +53,17 @@ function Layout() {
           },
         }}
       />
+      <Tabs.Screen
+        name="new-exercise"
+        options={{
+          headerShown: false,
+          title: "New Exercise",
+          href: null,
+          tabBarStyle: {
+            display: "none",
+          },
+        }}
+      />
 
       <Tabs.Screen
         name="history"
@@ -66,13 +81,9 @@ function Layout() {
         options={{
           headerShown: false,
           title: "Profile",
-          // tabBarIcon: ({ color, size }) => (
-          //   <Image
-          //     source={user?.imageUrl ?? user?.externalAccounts[0]?.imageUrl}
-          //     className="rounded-full"
-          //     style={{ width: 20, height: 20, borderRadius: 100 }}
-          //   />
-          // ),
+          tabBarIcon: ({ color, size }) => (
+            <FontAwesome5 name="user-alt" size={24} color={color} />
+          ),
         }}
       />
     </Tabs>

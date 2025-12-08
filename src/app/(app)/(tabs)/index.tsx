@@ -1,92 +1,196 @@
-import { Link } from "expo-router";
-import React from "react";
-import {Text, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useUser } from "@clerk/clerk-expo";
+import { WORKOUTS_API } from "../../../lib/api";
 
-export default function Page() {
-  return (
-    <SafeAreaView className="flex flex-1">
-      <Header />
-      <Content />
-    </SafeAreaView>
+export default function Home() {
+  const { user, isLoaded } = useUser();
+  const router = useRouter();
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [workouts, setWorkouts] = useState<
+    { _id: string; dateTime: string; duration: number; exercises: any[] }[]
+  >([]);
+
+  const fetchWorkouts = useCallback(async () => {
+    setError("");
+    try {
+      const response = await fetch(WORKOUTS_API);
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setWorkouts(result.data || []);
+      } else {
+        throw new Error(result.error || "Failed to load workouts");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to load workouts");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWorkouts();
+  }, [fetchWorkouts]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchWorkouts();
+    }, [fetchWorkouts])
   );
-}
 
-function Content() {
+  const totalWorkouts = workouts.length;
+  const totalDuration = workouts.reduce((sum, w) => sum + (w.duration || 0), 0);
+  const averageDuration =
+    totalWorkouts > 0 ? Math.round(totalDuration / totalWorkouts) : 0;
+
+  const formatDuration = (seconds: number) => {
+    if (!seconds) return "0s";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    const hours = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    if (hours > 0) return `${hours}h ${remMins}m`;
+    if (mins > 0) return `${mins}m ${secs}s`;
+    return `${secs}s`;
+  };
+
+  const sortedWorkouts = [...workouts].sort(
+    (a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime()
+  );
+  const lastWorkout = sortedWorkouts[0];
+
   return (
-    <View className="flex-1">
-      <View className="py-12 md:py-24 lg:py-32 xl:py-48">
-        <View className="px-4 md:px-6">
-          <View className="flex flex-col items-center gap-4 text-center">
-            <Text
-              role="heading"
-              className="text-3xl text-center native:text-5xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl"
-            >
-              Expo + Tailwind (NativeWind) Template
-            </Text>
+    <SafeAreaView className="flex-1 bg-gray-100 px-4 pt-4">
+      {/* Greeting */}
+      <View>
+        <Text className="text-xl text-gray-600">Welcome back,</Text>
+        <Text className="text-3xl font-bold text-gray-900 mt-1">
+          {user?.firstName || "NewBie"}! 💪
+        </Text>
+      </View>
 
-            <Text className="mx-auto max-w-[700px] text-lg text-center md:text-xl">
-              This template sets up Expo and Tailwind (NativeWind) allowing you
-              to quickly get started with my YouTube tutorial!
-            </Text>
-            <Link href="https://www.youtube.com/@sonnysangha" target="_blank">
-              <Text className="text-lg text-center text-blue-500 hover:text-blue-700 underline md:text-xl dark:text-blue-400 dark:hover:text-blue-300">
-                https://www.youtube.com/@sonnysangha
+      {/* Stats Card */}
+      <View className="bg-white rounded-3xl p-6 py-8 mt-6 shadow">
+        {loading ? (
+          <View className="items-center">
+            <ActivityIndicator size="large" color="#3B82F6" />
+            <Text className="text-gray-500 mt-2">Loading stats...</Text>
+          </View>
+        ) : error ? (
+          <View className="items-center">
+            <Text className="text-red-600 font-semibold">Unable to load</Text>
+            <Text className="text-gray-500 mt-1 text-center">{error}</Text>
+          </View>
+        ) : (
+          <View className="flex-row justify-between">
+            <View className="items-center gap-2">
+              <Text className="text-sm text-gray-500">Total Workouts</Text>
+              <Text className="text-2xl font-bold text-blue-600">
+                {totalWorkouts}
               </Text>
-            </Link>
-
-            <View className="gap-4">
-              <Link
-                suppressHighlighting
-                className="flex h-9 items-center justify-center overflow-hidden rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-gray-50 web:shadow ios:shadow transition-colors hover:bg-gray-900/90 active:bg-gray-400/90 web:focus-visible:outline-none web:focus-visible:ring-1 focus-visible:ring-gray-950 disabled:pointer-events-none disabled:opacity-50 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-50/90 dark:focus-visible:ring-gray-300"
-                href="https://www.youtube.com/@sonnysangha"
-              >
-                Visit my YouTube Channel
-              </Link>
             </View>
 
-            <View className="gap-4">
-              <Link
-                suppressHighlighting
-                className="flex h-9 items-center justify-center overflow-hidden rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-gray-50 web:shadow ios:shadow transition-colors hover:bg-gray-900/90 active:bg-gray-400/90 web:focus-visible:outline-none web:focus-visible:ring-1 focus-visible:ring-gray-950 disabled:pointer-events-none disabled:opacity-50 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-50/90 dark:focus-visible:ring-gray-300"
-                href="https://www.papareact.com/course"
-              >
-                Get the Complete Source Code (Plus 60+ builds) ❤️
-              </Link>
+            <View className="items-center gap-2">
+              <Text className="text-sm text-gray-500">Total Time</Text>
+              <Text className="text-2xl font-bold text-green-600">
+                {formatDuration(totalDuration)}
+              </Text>
             </View>
 
-            <View className="gap-4">
-              <Link
-                suppressHighlighting
-                className="flex h-9 items-center justify-center overflow-hidden rounded-md bg-green-700 px-4 py-2 text-sm font-medium text-gray-50 web:shadow ios:shadow transition-colors hover:bg-gray-900/90 active:bg-gray-400/90 web:focus-visible:outline-none web:focus-visible:ring-1 focus-visible:ring-gray-950 disabled:pointer-events-none disabled:opacity-50 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-50/90 dark:focus-visible:ring-gray-300"
-                href="https://www.papareact.com/course"
-              >
-                Join My Course & Learn to Code with AI 💚 (1000+ Students)
-              </Link>
+            <View className="items-center gap-2">
+              <Text className="text-sm text-gray-500">Average Duration</Text>
+              <Text className="text-2xl font-bold text-purple-600">
+                {formatDuration(averageDuration)}
+              </Text>
             </View>
           </View>
-        </View>
+        )}
       </View>
-    </View>
-  );
-}
 
-function Header() {
-  return (
-    <View>
-      <View className="px-4 lg:px-6 h-14 flex items-center flex-row justify-between ">
-        <Link className="font-bold flex-1 items-center justify-center" href="/">
-          PAPAFAM
-        </Link>
-        <View className="">
-          <Link
-            className="text-md font-medium hover:underline web:underline-offset-4"
-            href="https://www.papareact.com/course"
-          >
-            Join My Course ❤️
-          </Link>
+      {/* Quick Actions */}
+      <Text className="mt-8 mb-3 text-lg font-semibold text-gray-900">
+        Quick Actions
+      </Text>
+
+      <TouchableOpacity
+        className="bg-blue-600 p-5 py-8 rounded-3xl shadow flex-row items-center justify-between"
+        onPress={() => router.push("/workout")}>
+        <View className="flex-row items-center">
+          <Ionicons name="play" size={26} color="white" />
+          <Text className="text-white text-lg font-semibold ml-3">
+            Start Workout
+          </Text>
         </View>
+
+        <Ionicons name="chevron-forward" size={26} color="white" />
+      </TouchableOpacity>
+
+      <View className="flex-row mt-4">
+        <TouchableOpacity
+          className="flex-1 bg-white rounded-2xl p-4 py-6 mr-3 items-center shadow"
+          onPress={() => router.push("/history")}>
+          <Ionicons name="time-outline" size={32} color="#4B5563" />
+          <Text className="mt-4 text-gray-700 font-medium">
+            Workout History
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          className="flex-1 bg-white rounded-2xl p-4 py-6 ml-3 items-center shadow"
+          onPress={() => router.push("/exercises")}>
+          <Ionicons name="barbell-outline" size={32} color="#4B5563" />
+          <Text className="mt-4 text-gray-700 font-medium">
+            Browse Exercises
+          </Text>
+        </TouchableOpacity>
       </View>
-    </View>
+
+      {/* Last Workout */}
+      <Text className="mt-8 mb-3 text-lg font-semibold text-gray-900">
+        Last Workout
+      </Text>
+
+      <View className="bg-white rounded-3xl p-5 py-8 shadow">
+        {loading ? (
+          <View className="items-center">
+            <ActivityIndicator size="small" color="#3B82F6" />
+            <Text className="text-gray-500 mt-2">Loading last workout...</Text>
+          </View>
+        ) : !lastWorkout ? (
+          <Text className="text-gray-500 text-center">
+            No workouts yet. Start your first session!
+          </Text>
+        ) : (
+          <View className="flex-row justify-between items-start">
+            <View>
+              <Text className="text-gray-500">
+                {new Date(lastWorkout.dateTime).toLocaleDateString("en-US", {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </Text>
+              <Text className="text-xl font-semibold text-gray-900 mt-2">
+                {formatDuration(lastWorkout.duration)}
+              </Text>
+              <Text className="text-gray-500 mt-2">
+                {lastWorkout.exercises?.length || 0} exercises •{" "}
+                {lastWorkout.exercises?.reduce(
+                  (sum: number, ex: any) => sum + (ex.sets?.length || 0),
+                  0
+                )}{" "}
+                sets
+              </Text>
+            </View>
+            <Ionicons name="heart-outline" size={26} color="#9CA3AF" />
+          </View>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
