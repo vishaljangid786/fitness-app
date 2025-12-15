@@ -3,7 +3,6 @@
     "name": "Fitness App",
     "slug": "fitness-app",
     "scheme": "acme",
-    "version": "1.0.0",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "icon": "./src/images/f-2.png",
