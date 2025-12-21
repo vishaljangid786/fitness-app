@@ -7,8 +7,9 @@ import {
   Modal,
   TextInput,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -16,6 +17,9 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import * as ImagePicker from "expo-image-picker";
+import { useFocusEffect } from "expo-router";
+import { WORKOUTS_API } from "../../../../lib/api";
+import { useRouter } from "expo-router";
 
 type UserMeta = {
   age?: number;
@@ -25,12 +29,23 @@ type UserMeta = {
   bio?: string;
 };
 
+type Workout = {
+  _id: string;
+  dateTime: string;
+  duration: number; // in seconds
+  exercises: any[];
+};
+
 export default function Profile() {
   const { signOut } = useAuth();
   const { user, isLoaded } = useUser();
   const email = user?.primaryEmailAddress?.emailAddress;
-
+  const router = useRouter();
   const m = (user?.unsafeMetadata || {}) as UserMeta;
+
+  // WORKOUTS STATE
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [loadingWorkouts, setLoadingWorkouts] = useState(true);
 
   // NEW FULL PROFILE MODAL
   const [editProfileModalVisible, setEditProfileModalVisible] = useState(false);
@@ -51,6 +66,35 @@ export default function Profile() {
 
   const insets = useSafeAreaInsets();
 
+  // FETCH WORKOUTS
+  const fetchWorkouts = useCallback(async () => {
+    try {
+      const response = await fetch(WORKOUTS_API);
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setWorkouts(result.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load workouts:", err);
+    } finally {
+      setLoadingWorkouts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isLoaded) {
+      fetchWorkouts();
+    }
+  }, [isLoaded, fetchWorkouts]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isLoaded) {
+        fetchWorkouts();
+      }
+    }, [isLoaded, fetchWorkouts])
+  );
+
   if (!isLoaded) return null;
 
   // BMI
@@ -59,6 +103,43 @@ export default function Profile() {
     m.weight && m.height
       ? (m.weight / (heightM * heightM)).toFixed(1)
       : "Enter your height & weight";
+
+  // CALCULATE FITNESS STATS
+  const totalWorkouts = workouts.length;
+  const totalDuration = workouts.reduce((sum, w) => sum + (w.duration || 0), 0);
+  const averageDuration =
+    totalWorkouts > 0 ? Math.round(totalDuration / totalWorkouts) : 0;
+
+  // Calculate unique days active
+  const uniqueDates = new Set(
+    workouts.map((w) => {
+      const date = new Date(w.dateTime);
+      return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    })
+  );
+  const daysActive = uniqueDates.size;
+
+  // Format duration helper
+  const formatDuration = (seconds: number) => {
+    if (!seconds) return "0s";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    const hours = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    if (hours > 0) return `${hours}h ${remMins}m`;
+    if (mins > 0) return `${mins}m ${secs}s`;
+    return `${secs}s`;
+  };
+
+  // Format member since date
+  const formatMemberSince = () => {
+    if (!user?.createdAt) return "Member since recently";
+    const date = new Date(user.createdAt);
+    return `Member since ${date.toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    })}`;
+  };
 
   const handleEdit = (field: string, existingValue: any) => {
     setCurrentField(field);
@@ -77,7 +158,7 @@ export default function Profile() {
 
     setModalVisible(true);
   };
-
+  
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
@@ -129,7 +210,6 @@ export default function Profile() {
       weight: m.weight?.toString() || "",
       bio: m.bio || "",
     });
-
     setEditProfileModalVisible(true);
   };
 
@@ -176,13 +256,13 @@ export default function Profile() {
     },
   ];
 
-  if (email === "vickyjangid3456@gmail.com") {
+  if (email === "vickyjangid3456@gmail.com" || email === "vishaljangid80550786@gmail.com" || email === "noonecaresme81@gmail.com") {
     menuItems.push({
       label: "New Exercise",
       icon: "add-circle-outline",
       bg: "bg-yellow-100",
       text: "text-yellow-600",
-      onPress: () => Alert.alert("New Exercise", "Open new exercise builder"),
+      onPress: () => router.push("/new-exercise"),
     });
   }
 
@@ -234,7 +314,7 @@ export default function Profile() {
               </Text>
 
               <Text className="text-gray-400 text-sm">
-                Member since June 2025
+                {formatMemberSince()}
               </Text>
             </View>
           </View>
@@ -242,27 +322,44 @@ export default function Profile() {
 
         {/* FITNESS STATS */}
         <View className="mx-4 mt-6 bg-white rounded-3xl p-6 shadow">
-          <View className="flex-row justify-between mb-4">
-            <View className="items-center">
-              <Text className="text-gray-500 text-sm">Total Workouts</Text>
-              <Text className="text-xl font-bold text-gray-900">2</Text>
+          {loadingWorkouts ? (
+            <View className="items-center py-4">
+              <ActivityIndicator size="small" color="#3B82F6" />
+              <Text className="text-gray-500 mt-2 text-sm">Loading stats...</Text>
             </View>
+          ) : (
+            <>
+              <View className="flex-row justify-between mb-4">
+                <View className="items-center">
+                  <Text className="text-gray-500 text-sm">Total Workouts</Text>
+                  <Text className="text-xl font-bold text-gray-900">
+                    {totalWorkouts}
+                  </Text>
+                </View>
 
-            <View className="items-center">
-              <Text className="text-gray-500 text-sm">Total Time</Text>
-              <Text className="text-xl font-bold text-gray-900">2m 4s</Text>
-            </View>
+                <View className="items-center">
+                  <Text className="text-gray-500 text-sm">Total Time</Text>
+                  <Text className="text-xl font-bold text-gray-900">
+                    {formatDuration(totalDuration)}
+                  </Text>
+                </View>
 
-            <View className="items-center">
-              <Text className="text-gray-500 text-sm">Days Active</Text>
-              <Text className="text-xl font-bold text-gray-900">5</Text>
-            </View>
-          </View>
+                <View className="items-center">
+                  <Text className="text-gray-500 text-sm">Days Active</Text>
+                  <Text className="text-xl font-bold text-gray-900">
+                    {daysActive}
+                  </Text>
+                </View>
+              </View>
 
-          <Text className="text-gray-500 text-center">
-            Average workout duration:{" "}
-            <Text className="font-semibold text-gray-900">1m 2s</Text>
-          </Text>
+              <Text className="text-gray-500 text-center">
+                Average workout duration:{" "}
+                <Text className="font-semibold text-gray-900">
+                  {formatDuration(averageDuration)}
+                </Text>
+              </Text>
+            </>
+          )}
         </View>
 
         {/* ACCOUNT SETTINGS */}

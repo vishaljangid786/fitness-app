@@ -9,15 +9,18 @@ import {
   TouchableOpacity,
 } from "react-native";
 import React, { useEffect, useState } from "react";
-import { API_URL } from "./new-exercise";
+import { API_BASE, EXERCISES_API } from "../../lib/api";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getDifficultyColor,
   getDifficultyText,
 } from "../components/ExerciseCard";
 import { useRouter } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { LinearGradient } from "expo-linear-gradient";
 
 export default function AllExercise() {
+
   const router = useRouter();
   const [exercises, setExercises] = useState([]);
   const [filtered, setFiltered] = useState([]);
@@ -28,7 +31,8 @@ export default function AllExercise() {
 
   const fetchExercises = async () => {
     try {
-      const res = await fetch(`${API_URL}`);
+      const res = await fetch(EXERCISES_API);
+
       const json = await res.json();
 
       if (json.success) {
@@ -120,8 +124,14 @@ export default function AllExercise() {
                 resizeMode="cover"
               />
             ) : (
-              <View className="w-14 h-14 bg-gray-200 rounded-lg items-center justify-center">
-                <Text className="text-gray-500 text-xs">No Img</Text>
+              <View className="w-14 h-14 rounded-lg items-center justify-center">
+                <LinearGradient
+                  colors={["#3B82F6", "#9333EA"]}
+                  className="rounded-xl w-full h-full justify-center items-center flex-1"
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}>
+                  <Ionicons name="fitness" size={30} color="white" />
+                </LinearGradient>
               </View>
             )}
 

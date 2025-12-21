@@ -64,6 +64,15 @@ const Layout = () => {
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
         <Stack.Screen name="sign-up" options={{ headerShown: false }} />
       </Stack.Protected>
+
+      {/* Terms & Conditions - accessible to all */}
+      <Stack.Screen
+        name="terms-and-conditions"
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
+      />
     </Stack>
   );
 };

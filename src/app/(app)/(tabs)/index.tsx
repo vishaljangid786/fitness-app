@@ -19,7 +19,7 @@ export default function Home() {
   const fetchWorkouts = useCallback(async () => {
     setError("");
     try {
-      const response = await fetch(WORKOUTS_API);
+      const response = await fetch(`${WORKOUTS_API}/user/${user?.id}`);
       const result = await response.json();
       if (response.ok && result.success) {
         setWorkouts(result.data || []);

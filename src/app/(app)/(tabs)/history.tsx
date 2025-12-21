@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { WORKOUTS_API } from "../../../lib/api";
+import { useUser } from "@clerk/clerk-expo";
 
 // --- Type Definitions (Kept from original) ---
 type WorkoutSet = {
@@ -40,11 +41,12 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const {user} = useUser();
 
   const fetchWorkouts = useCallback(async () => {
     setError("");
     try {
-      const response = await fetch(WORKOUTS_API);
+      const response = await fetch(`${WORKOUTS_API}/user/${user?.id}`);
       const result = await response.json();
       if (response.ok && result.success) {
         setWorkouts(result.data);

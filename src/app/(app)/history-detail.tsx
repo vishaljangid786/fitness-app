@@ -166,6 +166,22 @@ export default function HistoryDetailPage() {
   const totalSets = calculateTotalSets(parsedWorkout.exercises);
   const totalExercises = parsedWorkout.exercises.length;
 
+  const deleteWorkout = async() => {
+    try {
+      const response = await fetch(`${WORKOUTS_API}/${parsedWorkout._id}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        router.back();
+      } else {
+        throw new Error(result.error || "Failed to delete workout");
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } 
+  };
+
   // --- Render Component ---
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -187,7 +203,7 @@ export default function HistoryDetailPage() {
           <Text className="text-xl font-bold text-gray-900">
             Workout Summary
           </Text>
-          <TouchableOpacity className="bg-red-500 px-3 py-2 rounded-lg">
+          <TouchableOpacity onPress={deleteWorkout} className="bg-red-500 px-3 py-2 rounded-lg">
             <Text className="text-white font-semibold">Delete</Text>
           </TouchableOpacity>
         </View>

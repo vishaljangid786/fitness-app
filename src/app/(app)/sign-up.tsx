@@ -27,6 +27,51 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = React.useState(false);
   const [showCode, setShowCode] = React.useState(false);
 
+  // Helper function to extract user-friendly error messages
+  const getErrorMessage = (error: any): string => {
+    if (!error) return "An unexpected error occurred. Please try again.";
+
+    // Clerk errors typically have errors array or message
+    if (error.errors && error.errors.length > 0) {
+      const firstError = error.errors[0];
+      
+      // Check for specific error codes
+      if (firstError.code === "form_identifier_exists") {
+        return "An account with this email already exists. Please sign in instead.";
+      }
+      if (firstError.code === "form_password_pwned") {
+        return "This password has been found in a data breach. Please choose a different password for your security.";
+      }
+      if (firstError.code === "form_password_length_too_short") {
+        return "Password is too short. Please use at least 8 characters.";
+      }
+      if (firstError.code === "form_password_not_strong_enough") {
+        return "Password is not strong enough. Please use a combination of letters, numbers, and symbols.";
+      }
+      if (firstError.code === "form_param_format_invalid") {
+        return "Invalid email format. Please enter a valid email address.";
+      }
+      if (firstError.code === "form_password_validation_failed") {
+        return "Password does not meet requirements. Please use at least 8 characters with a mix of letters, numbers, and symbols.";
+      }
+      
+      // Return the message if available
+      return firstError.message || firstError.longMessage || "An error occurred. Please try again.";
+    }
+
+    // Check for direct message property
+    if (error.message) {
+      return error.message;
+    }
+
+    // Check for status text (network errors)
+    if (error.statusText) {
+      return `Network error: ${error.statusText}. Please check your connection and try again.`;
+    }
+
+    return "An unexpected error occurred. Please try again.";
+  };
+
   // Handle submission of sign-up form
   const onSignUpPress = async () => {
     if (!isLoaded) return;
@@ -36,7 +81,12 @@ export default function SignUpScreen() {
       return;
     }
 
-    console.log(emailAddress, password);
+    if (password.length < 8) {
+      Alert.alert("Invalid Password", "Password must be at least 8 characters long.");
+      return;
+    }
+
+    setIsLoading(true);
 
     // Start sign-up process using email and password provided
     try {
@@ -51,10 +101,11 @@ export default function SignUpScreen() {
       // Set 'pendingVerification' to true to display second form
       // and capture OTP code
       setPendingVerification(true);
-    } catch (err) {
-      // See https://clerk.com/docs/guides/development/custom-flows/error-handling
-      // for more info on error handling
-      console.error(JSON.stringify(err, null, 2));
+    } catch (err: any) {
+      // Extract and display user-friendly error message
+      const errorMessage = getErrorMessage(err);
+      Alert.alert("Sign Up Failed", errorMessage);
+      console.error("Sign-up error:", JSON.stringify(err, null, 2));
     } finally {
       setIsLoading(false);
     }
@@ -68,6 +119,12 @@ export default function SignUpScreen() {
       Alert.alert("Error", "Please enter a verification code");
       return;
     }
+
+    if (code.length !== 6) {
+      Alert.alert("Invalid Code", "Please enter the complete 6-digit verification code.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -84,12 +141,30 @@ export default function SignUpScreen() {
       } else {
         // If the status is not complete, check why. User may need to
         // complete further steps.
-        console.error(JSON.stringify(signUpAttempt, null, 2));
+        Alert.alert(
+          "Verification Incomplete",
+          "Your verification requires additional steps. Please check your email or contact support."
+        );
       }
-    } catch (err) {
-      // See https://clerk.com/docs/guides/development/custom-flows/error-handling
-      // for more info on error handling
-      console.error(JSON.stringify(err, null, 2));
+    } catch (err: any) {
+      // Extract and display user-friendly error message
+      let errorMessage = "An error occurred during verification. Please try again.";
+      
+      if (err?.errors && err.errors.length > 0) {
+        const firstError = err.errors[0];
+        if (firstError.code === "form_code_incorrect") {
+          errorMessage = "Invalid verification code. Please check the code and try again.";
+        } else if (firstError.code === "form_code_expired") {
+          errorMessage = "Verification code has expired. Please request a new code.";
+        } else {
+          errorMessage = firstError.message || firstError.longMessage || errorMessage;
+        }
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+      
+      Alert.alert("Verification Failed", errorMessage);
+      console.error("Verification error:", JSON.stringify(err, null, 2));
     } finally {
       // Set loading state to false
       setIsLoading(false);
@@ -183,7 +258,28 @@ export default function SignUpScreen() {
                 </TouchableOpacity>
 
                 {/* Resend */}
-                <TouchableOpacity className="py-2">
+                <TouchableOpacity
+                  onPress={async () => {
+                    try {
+                      setIsLoading(true);
+                      await signUp.prepareEmailAddressVerification({
+                        strategy: "email_code",
+                      });
+                      Alert.alert(
+                        "Code Resent",
+                        "A new verification code has been sent to your email."
+                      );
+                    } catch (err: any) {
+                      const errorMessage =
+                        err?.errors?.[0]?.message ||
+                        "Failed to resend code. Please try again.";
+                      Alert.alert("Error", errorMessage);
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                  disabled={isLoading}
+                  className="py-2">
                   <Text className="font-medium text-center">
                     Didn't receive the code?{" "}
                     <Text className="text-blue-600">Resend</Text>
@@ -227,9 +323,7 @@ export default function SignUpScreen() {
                 <View className="flex-1 justify-center items-center">
                   <View className="items-center mb-8">
                     <View className="w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl items-center justify-center mb-4">
-                      <View className="shadow-2xl shadow-black">
                         <Ionicons name="fitness" size={40} color="white" />
-                      </View>
                     </View>
 
                     <Text className="text-3xl font-bold text-white mb-2">
@@ -329,12 +423,25 @@ export default function SignUpScreen() {
                 </TouchableOpacity>
 
                 {/* Terms */}
-                <View className="flex-row items-center justify-center">
+                <View className="flex-row flex-wrap items-center justify-center">
                   <Text className="text-sm text-gray-500">
                     By signing, you agree to our{" "}
-                    <Text className="text-blue-600">Terms of Service</Text> &{" "}
-                    <Text className="text-blue-600">Privacy Policy</Text>
                   </Text>
+                  <Link href="/terms-and-conditions" asChild>
+                    <TouchableOpacity>
+                      <Text className="text-sm text-blue-600 font-medium">
+                        Terms of Service
+                      </Text>
+                    </TouchableOpacity>
+                  </Link>
+                  <Text className="text-sm text-gray-500"> & </Text>
+                  <Link href="/terms-and-conditions" asChild>
+                    <TouchableOpacity>
+                      <Text className="text-sm text-blue-600 font-medium">
+                        Privacy Policy
+                      </Text>
+                    </TouchableOpacity>
+                  </Link>
                 </View>
               </View>
 

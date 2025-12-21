@@ -2,7 +2,9 @@ import { View, Text, TouchableOpacity } from "react-native";
 import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRouter } from "expo-router";
+import { useRouter } from "expo-router"; 
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+
 
 export default function workout() {
   const router = useRouter();
@@ -14,6 +16,12 @@ export default function workout() {
         </Text>
         <Text className="text-base text-gray-600">
           Start your workout session
+        </Text>
+      </View>
+      <View className="items-center justify-center flex-1">
+        <MaterialCommunityIcons name="dumbbell" className="-rotate-45" size={124} color="#a1a1aa" />
+        <Text className="text-base text-gray-600">
+          Start a workout to see exercises here
         </Text>
       </View>
 

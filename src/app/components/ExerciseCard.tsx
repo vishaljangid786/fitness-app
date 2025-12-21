@@ -47,8 +47,8 @@ export default function ExerciseCard({
       onPress={onPress}>
       <View className="flex-row p-6">
         <View className="w-20 h-20 bg-white rounded-xl mr-4 overflow-hidden">
-          {item.image ? (
-            <Image source={{ uri: item.image }} className="w-full h-full" />
+          {item.imageUrl ? (
+            <Image source={{ uri: item.imageUrl }} className="w-full h-full" />
           ) : (
             <LinearGradient
               colors={["#3B82F6", "#9333EA"]}

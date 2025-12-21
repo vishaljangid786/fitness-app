@@ -2,7 +2,7 @@ import React, { useCallback, useEffect } from "react";
 import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
 import { useSSO } from "@clerk/clerk-expo";
-import { View, Button, Platform, TouchableOpacity, Text, Image } from "react-native";
+import { View, Button, Platform, TouchableOpacity, Text, Image, Alert } from "react-native";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -30,14 +30,17 @@ export default function GoogleSignIn() {
 
   const onPress = useCallback(async () => {
     try {
+      // Create redirect URL with proper scheme from app.json
+      const redirectUrl = AuthSession.makeRedirectUri({
+        scheme: "acme", // Must match the scheme in app.json
+        path: "oauth-callback",
+      });
+
       // Start the authentication process by calling `startSSOFlow()`
       const { createdSessionId, setActive, signIn, signUp } =
         await startSSOFlow({
           strategy: "oauth_google",
-          // For web, defaults to current path
-          // For native, you must pass a scheme, like AuthSession.makeRedirectUri({ scheme, path })
-          // For more info, see https://docs.expo.dev/versions/latest/sdk/auth-session/#authsessionmakeredirecturioptions
-          redirectUrl: AuthSession.makeRedirectUri(),
+          redirectUrl,
         });
 
       // If sign in was successful, set the active session
@@ -61,10 +64,30 @@ export default function GoogleSignIn() {
         // there are missing requirements, such as MFA
         // See https://clerk.com/docs/guides/development/custom-flows/authentication/oauth-connections#handle-missing-requirements
       }
-    } catch (err) {
+    } catch (err: any) {
       // See https://clerk.com/docs/guides/development/custom-flows/error-handling
       // for more info on error handling
-      console.error(JSON.stringify(err, null, 2));
+      console.error("Google Sign-In Error:", JSON.stringify(err, null, 2));
+      
+      // Handle specific OAuth errors
+      let errorMessage = "Failed to sign in with Google. Please try again.";
+      
+      if (err?.errors && err.errors.length > 0) {
+        const firstError = err.errors[0];
+        if (firstError.message?.includes("disallowed_useragent") || 
+            firstError.code === "oauth_access_denied" ||
+            firstError.message?.includes("403")) {
+          errorMessage = "Google sign-in is not available in this browser. Please try:\n\n1. Using email/password sign-in instead\n2. Opening in Chrome/Safari browser\n3. Checking your Google OAuth settings";
+        } else if (firstError.message) {
+          errorMessage = firstError.message;
+        }
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+      
+      // Show error to user
+      Alert.alert("Google Sign-In Failed", errorMessage);
+      console.error("Google Sign-In Error:", errorMessage);
     }
   }, []);
   {/* <Image

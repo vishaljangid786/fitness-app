@@ -7,14 +7,17 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import React, { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { EXERCISES_API } from "../../lib/api";
+import { useRouter } from "expo-router";
 
 const NewExercise = () => {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -32,6 +35,9 @@ const NewExercise = () => {
 
   // Request image picker permissions
   const requestImagePermission = async () => {
+    // Web does not require explicit permission for file input
+    if (Platform.OS === "web") return true;
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
@@ -62,6 +68,11 @@ const NewExercise = () => {
 
   // Take photo with camera
   const takePhoto = async () => {
+    if (Platform.OS === "web") {
+      Alert.alert("Not supported", "Taking a photo is not supported on web. Please upload from gallery.");
+      return;
+    }
+
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
@@ -84,6 +95,12 @@ const NewExercise = () => {
 
   // Show image source options
   const showImageOptions = () => {
+    if (Platform.OS === "web") {
+      // On web, go straight to file picker
+      pickImage();
+      return;
+    }
+
     Alert.alert("Select Image", "Choose an option", [
       { text: "Camera", onPress: takePhoto },
       { text: "Gallery", onPress: pickImage },
@@ -91,24 +108,33 @@ const NewExercise = () => {
     ]);
   };
 
-  // Create FormData for multipart/form-data upload
-  const createFormData = () => {
-    const data = new FormData();
+  // Utility to turn comma/line separated text into an array
+  const toArray = (value: string) => {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  };
 
+  // Create FormData for multipart/form-data upload
+  const createFormData = async () => {
+    const data = new FormData();
+    
     // Add text fields
     data.append("name", formData.name);
     data.append("description", formData.description);
     data.append("category", formData.category);
     data.append("difficulty", formData.difficulty);
 
+    // Backend accepts strings (it will JSON.parse or split by commas)
     if (formData.muscleGroups) {
-      data.append("muscleGroups", formData.muscleGroups);
+      data.append("muscleGroups", JSON.stringify(toArray(formData.muscleGroups)));
     }
     if (formData.equipment) {
-      data.append("equipment", formData.equipment);
+      data.append("equipment", JSON.stringify(toArray(formData.equipment)));
     }
     if (formData.instructions) {
-      data.append("instructions", formData.instructions);
+      data.append("instructions", JSON.stringify(toArray(formData.instructions)));
     }
     if (formData.caloriesPerMinute) {
       data.append("caloriesPerMinute", formData.caloriesPerMinute);
@@ -123,11 +149,19 @@ const NewExercise = () => {
       const match = /\.(\w+)$/.exec(filename);
       const type = match ? `image/${match[1]}` : `image/jpeg`;
 
-      data.append("image", {
-        uri: image,
-        name: filename,
-        type: type,
-      } as any);
+      if (Platform.OS === "web") {
+        // On web, fetch the blob from the URI
+        const response = await fetch(image);
+        const blob = await response.blob();
+        const file = new File([blob], filename, { type });
+        data.append("image", file);
+      } else {
+        data.append("image", {
+          uri: image,
+          name: filename,
+          type: type,
+        } as any);
+      }
     }
 
     return data;
@@ -149,17 +183,21 @@ const NewExercise = () => {
     setLoading(true);
 
     try {
-      const formDataToSend = createFormData();
+      const formDataToSend = await createFormData();
 
       const response = await fetch(EXERCISES_API, {
         method: "POST",
         body: formDataToSend,
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+        // Let fetch set the correct multipart boundary (especially important on web)
       });
-
-      const result = await response.json();
+      const responseText = await response.text();
+      let result: any = {};
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        // Non-JSON (e.g., HTML error page)
+        result = { success: false, error: responseText };
+      }
 
       if (response.ok && result.success) {
         Alert.alert("Success", "Exercise created successfully!", [
@@ -183,14 +221,17 @@ const NewExercise = () => {
           },
         ]);
       } else {
-        Alert.alert("Error", result.error || "Failed to create exercise");
+        const message =
+          result?.error ||
+          `Failed to create exercise. Status: ${response.status}. Message: ${responseText}`;
+        Alert.alert("Error", message);
       }
     } catch (error: any) {
       console.error("Error creating exercise:", error);
       Alert.alert(
         "Error",
         error.message ||
-          "Failed to connect to server. Make sure your backend is running."
+        "Failed to connect to server. Make sure your backend is running."
       );
     } finally {
       setLoading(false);
@@ -203,14 +244,20 @@ const NewExercise = () => {
         className="flex-1"
         contentContainerStyle={{ padding: 20 }}
         showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View className="mb-6">
-          <Text className="text-3xl font-bold text-gray-900">
-            Create New Exercise
-          </Text>
-          <Text className="text-gray-600 mt-2">
-            Add a new exercise to your library
-          </Text>
+
+        <View className="flex-row  gap-2">
+          <TouchableOpacity onPress={() => router.back()} className=" p-2">
+            <Ionicons name="arrow-back" size={24} color="black" />
+          </TouchableOpacity>
+          {/* Header */}
+          <View className="mb-6">
+            <Text className="text-3xl font-bold text-gray-900">
+              Create New Exercise
+            </Text>
+            <Text className="text-gray-600 mt-2">
+              Add a new exercise to your library
+            </Text>
+          </View>
         </View>
 
         {/* Image Upload Section */}
@@ -290,17 +337,15 @@ const NewExercise = () => {
                   <TouchableOpacity
                     key={cat}
                     onPress={() => setFormData({ ...formData, category: cat })}
-                    className={`px-4 py-2 rounded-lg ${
-                      formData.category === cat
+                    className={`px-4 py-2 rounded-lg ${formData.category === cat
                         ? "bg-blue-500"
                         : "bg-white border border-gray-200"
-                    }`}>
+                      }`}>
                     <Text
-                      className={`font-medium ${
-                        formData.category === cat
+                      className={`font-medium ${formData.category === cat
                           ? "text-white"
                           : "text-gray-700"
-                      }`}>
+                        }`}>
                       {cat}
                     </Text>
                   </TouchableOpacity>
@@ -319,17 +364,15 @@ const NewExercise = () => {
                 <TouchableOpacity
                   key={diff}
                   onPress={() => setFormData({ ...formData, difficulty: diff })}
-                  className={`flex-1 px-4 py-3 rounded-xl ${
-                    formData.difficulty === diff
+                  className={`flex-1 px-4 py-3 rounded-xl ${formData.difficulty === diff
                       ? "bg-blue-500"
                       : "bg-white border border-gray-200"
-                  }`}>
+                    }`}>
                   <Text
-                    className={`text-center font-medium ${
-                      formData.difficulty === diff
+                    className={`text-center font-medium ${formData.difficulty === diff
                         ? "text-white"
                         : "text-gray-700"
-                    }`}>
+                      }`}>
                     {diff}
                   </Text>
                 </TouchableOpacity>
@@ -423,9 +466,8 @@ const NewExercise = () => {
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={loading}
-          className={`mt-6 mb-8 py-4 rounded-xl items-center ${
-            loading ? "bg-gray-400" : "bg-blue-500"
-          }`}>
+          className={`mt-6 mb-8 py-4 rounded-xl items-center ${loading ? "bg-gray-400" : "bg-blue-500"
+            }`}>
           {loading ? (
             <ActivityIndicator color="white" />
           ) : (

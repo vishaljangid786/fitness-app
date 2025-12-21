@@ -3,6 +3,7 @@ import AntDesign from "@expo/vector-icons/AntDesign";
 import Entypo from "@expo/vector-icons/Entypo";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useUser } from "@clerk/clerk-expo";
+import { Image } from "react-native";
 
 function Layout() {
   const { user, isLoaded } = useUser();
@@ -82,7 +83,15 @@ function Layout() {
           headerShown: false,
           title: "Profile",
           tabBarIcon: ({ color, size }) => (
-            <FontAwesome5 name="user-alt" size={24} color={color} />
+            <Image
+              source={{
+                uri:
+                  (user?.unsafeMetadata?.image as string) ||
+                  (user?.imageUrl as string) ||
+                  "https://via.placeholder.com/150",
+              }}
+              className=" w-7 h-7 rounded-full"
+            />
           ),
         }}
       />

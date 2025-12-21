@@ -20,7 +20,6 @@
     "android": {
       "package": "com.jangidvishal.fitnessapp",
       "permissions": [],
-      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./src/images/f-2.png",
         "backgroundColor": "#c9c9c9"

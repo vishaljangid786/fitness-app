@@ -11,74 +11,76 @@ import { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { EXERCISES_API } from "../../lib/api";
 import {
   getDifficultyColor,
   getDifficultyText,
 } from "../components/ExerciseCard";
 
-// --- Removed all Sanity imports ---
-// No client, no urlFor, no query
-
 export default function ExerciseDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-
-  // Replace with your own data model
-  const [exercise, setExercise] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [aiGuidance, setAiGuidance] = useState<string>("");
-  const [aiLoading, setAiLoading] = useState<boolean>(false);
-
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchExercise = async () => {
-      // 🚀 Replace this static object with your own API call
-      const mockExercise = {
-        id,
-        name: "Push-Up",
-        difficulty: "medium",
-        description:
-          "A classic upper-body exercise that strengthens chest, shoulders, and triceps.",
-        image:
-          "https://upload.wikimedia.org/wikipedia/commons/9/9d/Pushups.jpg",
-        videoUrl: "https://www.youtube.com/watch?v=_l3ySVKYVJ8",
-      };
+  // ✅ get id from params
+  const { id } = useLocalSearchParams<{ id: string }>();
 
-      setExercise(mockExercise);
-      setLoading(false);
+  const [exerciseData, setExerciseData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [aiGuidance, setAiGuidance] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+
+  // ✅ Fetch exercise by ID
+  useEffect(() => {
+    if (!id) return;
+
+    const fetchExercise = async () => {
+      try {
+        const res = await fetch(`${EXERCISES_API}/${id}`);
+        const data = await res.json();
+        setExerciseData(data.data);
+        
+      } catch (error) {
+        console.error("Failed to fetch exercise:", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchExercise();
-  }, []);
+  }, [id]);
 
-  const getAiGuidance = async () => {
+  // 🤖 AI Guidance (mock)
+  const getAiGuidance = () => {
     setAiLoading(true);
 
-    // Replace with your AI backend if desired
     setTimeout(() => {
       setAiGuidance(
-        "Keep your core tight, maintain a straight line from head to heels, and avoid flaring your elbows."
+        "Keep your core tight, breathe steadily, and focus on controlled movement for best results."
       );
       setAiLoading(false);
     }, 1200);
   };
 
+  // ⏳ Loading
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-white">
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#0000ff" />
-          <Text className="text-gray-500"> Loading exercise...</Text>
+          <ActivityIndicator size="large" color="#3b82f6" />
+          <Text className="text-gray-500 mt-2">Loading exercise...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (aiLoading) {
+  // ❌ No data
+  if (!exerciseData) {
     return (
       <SafeAreaView className="flex-1 bg-white">
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#0000ff" />
+          <Ionicons name="alert-circle" size={40} color="red" />
+          <Text className="text-gray-600 mt-2">
+            Exercise not found
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -90,7 +92,8 @@ export default function ExerciseDetail() {
         flex: 1,
         backgroundColor: "rgba(0,0,0,0)",
         justifyContent: "flex-end",
-      }}>
+      }}
+    >
       <View
         style={{
           height: "95%",
@@ -98,142 +101,105 @@ export default function ExerciseDetail() {
           borderTopLeftRadius: 25,
           borderTopRightRadius: 25,
           padding: 20,
-        }}>
+        }}
+      >
+        {/* Close Button */}
         <View className="absolute top-12 left-0 right-0 z-10 px-4">
           <TouchableOpacity
             onPress={() => router.back()}
-            className="w-10 h-10 bg-black/20 rounded-full items-center justify-center backdrop-blur-sm">
+            className="w-10 h-10 bg-black/30 rounded-full items-center justify-center"
+          >
             <Ionicons name="close" size={24} color="white" />
           </TouchableOpacity>
         </View>
 
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          {/* Hero Image */}
-          <View className="h-80 bg-white relative">
-            {exercise?.image ? (
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Image */}
+          <View className="h-80 mb-6">
+            {exerciseData.imageUrl ? (
               <Image
-                source={{ uri: exercise.image }}
-                className="w-full h-full"
-                resizeMode="contain"
+                source={{ uri: exerciseData.imageUrl }}
+                className="w-full h-full rounded-xl"
+                resizeMode="stretch"
               />
             ) : (
-              <View className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/60 to-transparent"></View>
+              <View className="flex-1 items-center justify-center bg-gray-100 rounded-xl">
+                <Ionicons name="fitness" size={80} color="#9ca3af" />
+              </View>
             )}
           </View>
 
-          {/* Content */}
-          <View className="px-4 py-6">
-            {/* Title */}
-            <View className="flex-row items-start justify-between mb-4">
-              <View className="flex-1 mr-4">
-                <Text className="text-3xl font-bold text-gray-800 mb-2">
-                  {exercise?.name}
-                </Text>
-                <View
-                  className={`self-start px-4 py-2 rounded-full ${getDifficultyColor(
-                    exercise?.difficulty
-                  )}`}>
-                  <Text className="text-sm font-semibold text-white">
-                    {getDifficultyText(exercise?.difficulty)}
-                  </Text>
-                </View>
-              </View>
-            </View>
+          {/* Title */}
+          <Text className="text-3xl font-bold text-gray-900 mb-3">
+            {exerciseData.name}
+          </Text>
 
-            {/* Description */}
+          {/* Difficulty */}
+          <View
+            className={`self-start px-4 py-2 rounded-full mb-6 ${getDifficultyColor(
+              exerciseData.difficulty
+            )}`}
+          >
+            <Text className="text-white font-semibold">
+              {getDifficultyText(exerciseData.difficulty)}
+            </Text>
+          </View>
+
+          {/* Description */}
+          <Text className="text-xl font-semibold mb-2">Description</Text>
+          <Text className="text-gray-600 leading-6 mb-6">
+            {exerciseData.description}
+          </Text>
+
+          {/* Video */}
+          {exerciseData.videoUrl && (
+            <TouchableOpacity
+              className="bg-red-500 rounded-xl p-4 flex-row items-center mb-6"
+              onPress={() => Linking.openURL(exerciseData.videoUrl)}
+            >
+              <View className="w-12 h-12 bg-white rounded-full items-center justify-center mr-4">
+                <Ionicons name="play" size={20} color="#ef4444" />
+              </View>
+              <Text className="text-white font-semibold text-lg">
+                Watch Tutorial
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* AI Coach */}
+          {(aiGuidance || aiLoading) && (
             <View className="mb-6">
-              <Text className="text-xl font-semibold text-gray-800 mb-3">
-                Description
+              <Text className="text-xl font-semibold mb-2">
+                AI Coach Says
               </Text>
-              <Text className="text-gray-600 leading-6 text-base">
-                {exercise?.description}
-              </Text>
+
+              {aiLoading ? (
+                <ActivityIndicator size="small" color="#3b82f6" />
+              ) : (
+                <View className="bg-blue-50 p-4 rounded-xl border-l-4 border-blue-500">
+                  <Text>{aiGuidance}</Text>
+                </View>
+              )}
             </View>
+          )}
 
-            {/* Video */}
-            {exercise?.videoUrl && (
-              <View className="mb-6">
-                <Text className="text-xl font-semibold text-gray-800 mb-3">
-                  Video Tutorial
-                </Text>
-                <TouchableOpacity
-                  className="bg-red-500 rounded-xl p-4 flex-row items-center"
-                  onPress={() => Linking.openURL(exercise.videoUrl)}>
-                  <View className="w-12 h-12 bg-white rounded-full items-center justify-center mr-4">
-                    <Ionicons name="play" size={20} color="#ef4444" />
-                  </View>
-                  <View>
-                    <Text className="text-white font-semibold text-lg">
-                      Watch Tutorial
-                    </Text>
-                    <Text className="text-red-100 text-sm">
-                      Learn proper form
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-            )}
+          {/* Buttons */}
+          <TouchableOpacity
+            className="bg-blue-500 rounded-xl py-4 items-center mb-3"
+            onPress={getAiGuidance}
+            disabled={aiLoading}
+          >
+            <Text className="text-white font-bold text-lg">
+              {aiGuidance ? "Refresh AI Guidance" : "Get AI Guidance"}
+            </Text>
+          </TouchableOpacity>
 
-            {/* AI Guidance */}
-            {(aiGuidance || aiLoading) && (
-              <View className="mb-6">
-                <Ionicons name="fitness" size={24} color="#3b82f6" />
-                <Text className="text-xl font-semibold text-gray-800 ml-2">
-                  Ai Coach Says...
-                </Text>
-
-                {aiLoading ? (
-                  <View className="bg-gray-50 rounded-xl p-4 items-center">
-                    <ActivityIndicator size="small" color="#3b82f6" />
-                    <Text className="text-gray-600 mt-2">
-                      Getting personalized AI guidance...
-                    </Text>
-                  </View>
-                ) : (
-                  <View className="bg-blue-50 rounded-xl p-4 border-l-4 border-blue-500">
-                    <Text className="text-gray-800 leading-6">
-                      {aiGuidance}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Buttons */}
-            <View className="mt-8 gap-2">
-              <TouchableOpacity
-                className={`rounded-xl py-4 items-center ${
-                  aiLoading
-                    ? "bg-gray-400"
-                    : aiGuidance
-                    ? "bg-green-500"
-                    : "bg-blue-500"
-                }`}
-                onPress={getAiGuidance}
-                disabled={aiLoading}>
-                {aiLoading ? (
-                  <View className="flex-row items-center">
-                    <ActivityIndicator size="small" color="white" />
-                    <Text className="text-white font-semibold text-lg ml-2">
-                      Loading...
-                    </Text>
-                  </View>
-                ) : (
-                  <Text className="text-white font-bold text-lg">
-                    {aiGuidance
-                      ? "Refresh Ai Guidance"
-                      : "Get Ai Guidance on Form & Technique"}
-                  </Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="bg-gray-200 rounded-xl py-4 items-center"
-                onPress={() => router.back()}>
-                <Text className="text-gray-800 font-bold text-lg">Close</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          <TouchableOpacity
+            className="bg-gray-200 rounded-xl py-4 items-center"
+            onPress={() => router.back()}
+          >
+            <Text className="font-bold">Close</Text>
+          </TouchableOpacity>
         </ScrollView>
       </View>
     </SafeAreaView>

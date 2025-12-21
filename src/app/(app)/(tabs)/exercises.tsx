@@ -45,9 +45,6 @@ export default function Exercises() {
         },
       });
       const result = await response.json();
-      console.log("result:", result);
-      
-
       if (result.success) {
         setExercises(result.data); // store all exercises
         setFilteredExercises(result.data); // also update filtered

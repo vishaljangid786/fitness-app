@@ -6,12 +6,22 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  FlatList,
+  ActivityIndicator,
+  Image,
+  RefreshControl,
 } from "react-native";
 import React, { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router, useLocalSearchParams } from "expo-router";
-import { WORKOUTS_API } from "../../lib/api";
+import { useRouter } from "expo-router";
+import { WORKOUTS_API, EXERCISES_API } from "../../lib/api";
+import { useUser } from "@clerk/clerk-expo";
+import {
+  getDifficultyColor,
+  getDifficultyText,
+} from "../components/ExerciseCard";
+import { LinearGradient } from "expo-linear-gradient";
 
 // ---------------- TYPES ---------------------
 type WorkoutSet = {
@@ -35,16 +45,15 @@ export default function ActiveWorkout() {
   const [unit, setUnit] = useState<"kg" | "lbs">("kg");
   const [workout, setWorkout] = useState<Exercise[]>([]);
   const [saving, setSaving] = useState(false);
-
-  const { exercise } = useLocalSearchParams<{ exercise?: string }>();
-
-  // TIMER
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSeconds((s) => s + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const { user } = useUser();
+  const [showModal, SetShowModal] = useState(false);
+  const router = useRouter();
+  const [exercises, setExercises] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
   const formattedTime = () => {
     const mins = String(Math.floor(seconds / 60)).padStart(2, "0");
@@ -52,29 +61,61 @@ export default function ActiveWorkout() {
     return `${mins}:${secs}`;
   };
 
-  // IF EXERCISE SELECTED FROM ALL EXERCISES
-  useEffect(() => {
-    if (exercise) {
-      try {
-        const ex = JSON.parse(exercise);
+  const fetchExercises = async () => {
+    try {
+      const res = await fetch(EXERCISES_API);
 
-        setWorkout((prev) => {
-          // check if exercise already exists in workout
-          const exists = prev.some((w) => w._id === ex._id);
-          if (exists) return prev; // don’t add duplicates
+      const json = await res.json();
 
-          const newExercise: Exercise = {
-            ...ex,
-            sets: [{ reps: 0, weight: 0, completed: false }],
-          };
-
-          return [...prev, newExercise];
-        });
-      } catch (err) {
-        console.error("Invalid exercise param:", err);
+      if (json.success) {
+        setExercises(json.data);
+        setFiltered(json.data);
+      } else {
+        setError("API returned an error.");
       }
+    } catch (err) {
+      setError("Failed to load exercises.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  }, [exercise]);
+  };
+
+  // TIMER
+  useEffect(() => {
+    fetchExercises();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSeconds((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 🔍 FILTER FUNCTION
+  const handleSearch = (text) => {
+    setSearch(text);
+
+    if (!text.trim()) {
+      setFiltered(exercises);
+      return;
+    }
+
+    const query = text.toLowerCase();
+
+    const filteredData = exercises.filter((item) =>
+      item.name.toLowerCase().includes(query)
+    );
+
+    setFiltered(filteredData);
+  };
+
+  // 🔄 PULL-TO-REFRESH FUNCTION
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchExercises(); // calls API again
+  };
 
   // HANDLE SET FIELD CHANGE
   const updateSetField = (
@@ -119,6 +160,7 @@ export default function ActiveWorkout() {
       return copy;
     });
   };
+
   const EndworkoutFunction = () => {
     Alert.alert("End Workout", "Save and finish this session?", [
       { text: "Cancel", style: "cancel" },
@@ -155,6 +197,7 @@ export default function ActiveWorkout() {
     const payload = {
       dateTime: new Date().toISOString(),
       duration: seconds,
+      userId: user?.id,
       exercises: workout.map((ex) => ({
         exerciseId: ex._id,
         name: ex.name,
@@ -197,6 +240,24 @@ export default function ActiveWorkout() {
     }
   };
 
+  const addExerciseToWorkout = (exercise:Exercise) => {
+    setWorkout((prev) => {
+      const exists = prev.some((w) => w._id === exercise._id);
+      if (exists) return prev;
+
+      return [
+        ...prev,
+        {
+          ...exercise,
+          sets: [{ reps: 0, weight: 0, completed: false }],
+        },
+      ];
+    });
+
+    SetShowModal(false); // close modal
+  };
+
+
   const deleteExercise = (exIndex: number) => {
     setWorkout((prev) => prev.filter((_, i) => i !== exIndex));
   };
@@ -219,9 +280,8 @@ export default function ActiveWorkout() {
         <View className="flex-row items-center gap-2">
           <View className="flex-row border mr-5 rounded border-blue-400 overflow-hidden">
             <TouchableOpacity
-              className={`px-3 py-1 ${
-                unit === "lbs" ? "bg-blue-400" : "bg-white"
-              }`}
+              className={`px-3 py-1 ${unit === "lbs" ? "bg-blue-400" : "bg-white"
+                }`}
               onPress={() => setUnit("lbs")}>
               <Text
                 className={
@@ -234,9 +294,8 @@ export default function ActiveWorkout() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              className={`px-3 py-1 ${
-                unit === "kg" ? "bg-blue-400" : "bg-white"
-              }`}
+              className={`px-3 py-1 ${unit === "kg" ? "bg-blue-400" : "bg-white"
+                }`}
               onPress={() => setUnit("kg")}>
               <Text
                 className={
@@ -250,9 +309,8 @@ export default function ActiveWorkout() {
           </View>
 
           <TouchableOpacity
-            className={`px-3 py-1 rounded-xl ${
-              saving ? "bg-red-300" : "bg-red-600"
-            }`}
+            className={`px-3 py-1 rounded-xl ${saving ? "bg-red-300" : "bg-red-600"
+              }`}
             disabled={saving}
             onPress={EndworkoutFunction}>
             <Text className="text-white font-semibold">End Workout</Text>
@@ -276,7 +334,7 @@ export default function ActiveWorkout() {
             </View>
 
             <TouchableOpacity
-              onPress={() => router.push("all-exercises")}
+              onPress={() => SetShowModal(true) }
               className="bg-blue-600 p-4 rounded-xl items-center mt-6 w-full">
               <Text className="text-white font-semibold text-base">
                 + Add Exercise
@@ -286,9 +344,8 @@ export default function ActiveWorkout() {
             <TouchableOpacity
               onPress={completeWorkout}
               disabled={saving}
-              className={`p-4 rounded-xl items-center mt-3 w-full ${
-                saving ? "bg-gray-300" : "bg-blue-600"
-              }`}>
+              className={`p-4 rounded-xl items-center mt-3 w-full ${saving ? "bg-gray-300" : "bg-blue-600"
+                }`}>
               <Text className="text-white font-semibold text-base">
                 {saving ? "Saving..." : "Complete Workout"}
               </Text>
@@ -326,9 +383,8 @@ export default function ActiveWorkout() {
                   {exercise.sets.map((set, setIndex) => (
                     <View
                       key={setIndex}
-                      className={`flex-row items-center justify-between p-3 rounded-xl mb-3 ${
-                        set.completed ? "bg-green-100" : "bg-gray-100"
-                      }`}>
+                      className={`flex-row items-center justify-between p-3 rounded-xl mb-3 ${set.completed ? "bg-green-100" : "bg-gray-100"
+                        }`}>
                       {/* LEFT NUMBER */}
                       <Text className="w-6 text-gray-800 font-semibold text-lg">
                         {setIndex + 1}
@@ -360,7 +416,7 @@ export default function ActiveWorkout() {
                           <TextInput
                             keyboardType="numeric"
                             value={set.weight > 0 ? String(set.weight) : ""}
-                            placeholder={`Weight (${unit})`}
+                            placeholder={`Weight`}
                             onChangeText={(t) =>
                               updateSetField(exIndex, setIndex, "weight", t)
                             }
@@ -376,13 +432,12 @@ export default function ActiveWorkout() {
                           disabled={!(set.reps > 0 && set.weight > 0)}
                           className="p-2 mt-4">
                           <Ionicons
-                            className={`p-1 border rounded-xl border-gray-300 ${
-                              set.completed
-                                ? "bg-green-500"
-                                : set.reps > 0 && set.weight > 0
-                                  ? "bg-white"
-                                  : "bg-gray-200"
-                            }`}
+                            className={`p-1 border rounded-xl border-gray-300 ${set.completed
+                              ? "bg-green-500"
+                              : set.reps > 0 && set.weight > 0
+                                ? "bg-white"
+                                : "bg-gray-200"
+                              }`}
                             name={
                               set.completed ? "checkmark" : "checkmark-outline"
                             }
@@ -400,9 +455,8 @@ export default function ActiveWorkout() {
 
                       <TouchableOpacity
                         onPress={() => deleteSet(exIndex, setIndex)}
-                        className={`p-1 mt-4 rounded-xl border-gray-300 ${
-                          set.completed ? "border border-red-500" : "bg-white"
-                        }`}>
+                        className={`p-1 mt-4 rounded-xl border-gray-300 ${set.completed ? "border border-red-500" : "bg-white"
+                          }`}>
                         <Ionicons name="trash" size={28} color="red" />
                       </TouchableOpacity>
                     </View>
@@ -426,7 +480,7 @@ export default function ActiveWorkout() {
       {workout.length !== 0 && (
         <>
           <TouchableOpacity
-            onPress={() => router.push("all-exercises")}
+            onPress={() => SetShowModal(true) }
             className="bg-blue-100 p-4 rounded-xl items-center mt-4 mb-3 border border-blue-200">
             <Text className="text-blue-700 font-semibold text-base">
               + Add Exercise
@@ -435,14 +489,95 @@ export default function ActiveWorkout() {
           <TouchableOpacity
             onPress={completeWorkout}
             disabled={saving}
-            className={`p-4 rounded-xl items-center mb-6 ${
-              saving ? "bg-gray-400" : "bg-blue-600"
-            }`}>
+            className={`p-4 rounded-xl items-center mb-6 ${saving ? "bg-gray-400" : "bg-blue-600"
+              }`}>
             <Text className="text-white font-semibold text-base">
               {saving ? "Saving..." : "Complete Workout"}
             </Text>
           </TouchableOpacity>
         </>
+      )}
+      {showModal && (
+        <SafeAreaView className="absolute inset-0 bg-white px-4 pt-6">
+        <View className="flex-row justify-between">
+            <View className="mb-2">
+              <Text className="text-2xl font-bold mb-4">All Exercises</Text>
+            </View>
+            <TouchableOpacity className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center" >
+              <Ionicons name="close" size={30} color="red"  onPress={() => SetShowModal(false)} />
+            </TouchableOpacity> 
+        </View>
+
+          {/* Search Bar */}
+          <TextInput
+            value={search}
+            onChangeText={handleSearch}
+            placeholder="Search exercises..."
+            className="bg-white p-4 rounded-2xl mb-4 text-lg shadow"
+          />
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => item._id}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            renderItem={({ item }) => (
+              <View className="bg-white flex-row items-center p-4 mb-3 rounded-2xl shadow-sm border border-gray-200">
+                {/* IMAGE */}
+                {item.imageUrl ? (
+                  <Image
+                    source={{ uri: item.imageUrl }}
+                    className="w-14 h-14 rounded-lg"
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View className="w-14 h-14 rounded-lg items-center justify-center">
+                    <LinearGradient
+                      colors={["#3B82F6", "#9333EA"]}
+                      className="rounded-xl w-full h-full justify-center items-center flex-1"
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}>
+                      <Ionicons name="fitness" size={30} color="white" />
+                    </LinearGradient>
+                  </View>
+                )}
+
+                {/* RIGHT SIDE CONTENT */}
+                <View className="flex-1 ml-4">
+                  {/* NAME */}
+                  <Text className="text-lg font-semibold text-gray-900">
+                    {item.name}
+                  </Text>
+
+                  {/* SHORT DESCRIPTION */}
+                  <Text className="text-gray-500 text-sm mt-1">
+                    {item.description || "No description available"}
+                  </Text>
+
+                  <View className="flex-row items-center gap-4 mt-4 justify-between">
+                    {/* DIFFICULTY BADGE */}
+                    <View
+                      className={`self-start mt-2 px-3 py-1 rounded-full ${getDifficultyColor(
+                        item.difficulty
+                      )}`}>
+                      <Text className="text-white text-xs font-semibold">
+                        {getDifficultyText(item.difficulty)}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity onPress={() => addExerciseToWorkout(item)}>
+                      <Text className="text-blue-600 font-semibold bg-blue-100 px-3 py-1 rounded-xl">
+                        Add exercise
+                      </Text>
+                    </TouchableOpacity>
+
+                  </View>
+                </View>
+              </View>
+            )}
+          />
+        </SafeAreaView>
       )}
     </SafeAreaView>
   );
